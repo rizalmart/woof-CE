@@ -39,6 +39,12 @@ if [ -f $usermodmap ]; then
     xmodmap $usermodmap
 fi
 
+#Launch D-Bus
+if [ $DBUS_SESSION_BUS_ADDRESS == "" ]; then
+ eval 'dbus-launch --sh-syntax --exit-with-session'
+ export DBUS_SESSION_BUS_ADDRESS
+fi
+
 xhost +local: 2>/dev/null
 
 CURRENTWM="`cat /etc/windowmanager`"
