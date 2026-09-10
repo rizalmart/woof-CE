@@ -63,7 +63,7 @@ export OUTPUT_CHARSET=UTF-8
 . /etc/DISTRO_SPECS
 . /etc/rc.d/PUPSTATE
 . /etc/rc.d/BOOTCONFIG
-. /etc/clock
+[ -f /etc/clock ] && . /etc/clock
 . /etc/rc.d/BOOTCONSTRAINED #120714
 
 PARAM1=""
@@ -447,14 +447,20 @@ if [ "$SET_COUNTRY" ];then
  ###Choose locale###
  LOCALEXML=""
  if [ "$SET_LOCALE" ];then
+
   CURRLANG="`grep '^LANG=' /etc/profile | tr -d "'" | tr -d '"' | cut -f 2 -d '='`" #111022
+  [ ! "$CURRLANG" ] && CURRLANG="`grep '^LANG=' /etc/locale.conf | tr -d "'" | tr -d '"' | cut -f 2 -d '='`" #111022
   [ ! "$CURRLANG" ] && CURRLANG="en_US" #precaution
+
   UTF8=''
+  
   if [ "`echo -n "$CURRLANG" | grep 'utf8'`" != "" ];then #111022 get rid of old name.
    rm -rf /usr/lib/locale/$CURRLANG
    UTF8='.UTF-8'
   fi
+  
   [ "`echo -n "$CURRLANG" | grep 'UTF-8'`" != "" ] && UTF8='.UTF-8'
+  
   BASELANG="`basename $CURRLANG .utf8`"
   BASELANG="`basename $BASELANG .UTF-8`"
   #does the locale need to have UTF-8 enabled?...
@@ -857,7 +863,15 @@ if [ "$SET_COUNTRY" ];then
   ITEMS=`sed -e 's% on$%%' -e 's% off$%%' -e 's%"%%g' -e "s% %${TABCHAR}%" -e 's%^%<item>%' -e 's%$%</item>%' /var/local/quicksetup-timezone-table-x`
 
   DEFAULT_UTC="false"
-  [ "$HWCLOCKTIME" = "utc" ] && DEFAULT_UTC="true" #see /etc/clock
+  
+  ADJHW="$(grep -m 1 -E 'UTC|LOCAL'  /etc/adjtime)"
+  
+  if [ "$HWCLOCKTIME" != "" ]; then
+	[ "$HWCLOCKTIME" = "utc" ] && DEFAULT_UTC="true" #see /etc/clock
+  else
+    [ "$ADJHW" = "UTC" ] && DEFAULT_UTC="true"
+  fi
+
   CHECKUTCXML='
   <hbox tooltip-text="'$(gettext 'Tick checkbox if hardware clock is set to UTC, untick if hardware clock set to local time')'" space-expand="true" space-fill="true">
     <checkbox space-expand="false" space-fill="false">
@@ -1286,7 +1300,10 @@ if [ "$SET_LOCALE" ];then
 
   if [ "$OLDLANGLINE" != "$NEWLANGLINE" ];then
    langPATTERN="s%^LANG=.*%${NEWLANGLINE}%" #111022
+   
    sed -i -e "$langPATTERN" /etc/profile
+   sed -i -e "$langPATTERN" /etc/locale.conf
+   
    #120328 code moved up, to be compatible for chooselocale call from rc.country...
    #120224 load console font... (code based on that in 'init')
    #120301 don't load console font here. seems to get dropped on exit from X. (instead, do it in xwin. now have /sbin/load_consolefont)
